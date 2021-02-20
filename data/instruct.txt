@@ -1,5 +1,5 @@
 
-MAP FILE FORMAT:
+MAP FILE FORMAT (occupancy_map from map_reader.py):
 
 It is pretty self-explanatory:
    -1  = don't know

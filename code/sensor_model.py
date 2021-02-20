@@ -25,15 +25,15 @@ class SensorModel:
         """
         # Four distributions are mixed by a weighted average, defined by
         # z_hit, z_short, z_max, z_rand, with z_hit + z_short + z_max + z_rand = 1
-        self._z_hit = 0.5
-        self._z_short = 0.15
-        self._z_max = 0.05
+        self._z_hit = 0.68
+        self._z_short = 0.1
+        self._z_max = 0.02
         self._z_rand = 0.2
 
         # sigma_hit is an intrinsic noise parameter of the sensor model for measurement noise
-        self._sigma_hit = 10
+        self._sigma_hit = 50
         # lambda_short is an intrinsic parameter of the sensor model, for exponential noise
-        self._lambda_short = 0.03
+        self._lambda_short = 0.1
 
         self._max_range = 1000
         self._min_probability = 0.35
@@ -93,9 +93,8 @@ class SensorModel:
     def get_p_hit(self, z_t, zstar_t):
         p_hit = 0
         if 0 <= z_t <= self._max_range:
-            p_hit = -0.5 * math.log(2 * math.pi * (self._sigma_hit ** 2)) - 0.5 * ((z_t - zstar_t) ** 2 / (
-                        self._sigma_hit ** 2))
-            p_hit = math.exp(p_hit)
+            eta = norm.cdf(self._max_range, loc=zstar_t, scale=self._sigma_hit) - norm.cdf(0, loc=zstar_t, scale=self._sigma_hit)
+            p_hit = norm.pdf(z_t, loc=zstar_t, scale=self._sigma_hit) / eta
 
         return p_hit
 
