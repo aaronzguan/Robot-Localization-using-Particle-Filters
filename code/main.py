@@ -80,7 +80,7 @@ if __name__ == '__main__':
     parser.add_argument('--path_to_map', default='../data/map/wean.dat')
     parser.add_argument('--path_to_log', default='../data/log/robotdata1.log')
     parser.add_argument('--output', default='results')
-    parser.add_argument('--num_particles', default=100, type=int)
+    parser.add_argument('--num_particles', default=200, type=int)
     parser.add_argument('--visualize', action='store_false')
     args = parser.parse_args()
 
