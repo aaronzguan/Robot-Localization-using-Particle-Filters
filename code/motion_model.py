@@ -37,10 +37,10 @@ class MotionModel:
         TODO : Tune Motion Model parameters here
         The original numbers are for reference but HAVE TO be tuned.
         """
-        self._alpha1 = 0.001
-        self._alpha2 = 0.001
-        self._alpha3 = 0.001
-        self._alpha4 = 0.001
+        self._alpha1 = 0.0001
+        self._alpha2 = 0.0001
+        self._alpha3 = 0.01
+        self._alpha4 = 0.01
 
     def update(self, u_t0, u_t1, x_t0):
         """
@@ -53,9 +53,13 @@ class MotionModel:
         delta_trans = math.sqrt((u_t0[0] - u_t1[0]) ** 2 + (u_t0[1] - u_t1[1]) ** 2)
         delta_rot2 = u_t1[2] - u_t0[2] - delta_rot1
 
-        true_rot1 = delta_rot1 - sample(0, self._alpha1 * delta_rot1 ** 2 + self._alpha2 * delta_trans ** 2)
-        true_trans = delta_trans - sample(0, self._alpha3 * delta_trans ** 2 + self._alpha4 * delta_rot1 ** 2 + self._alpha4 * delta_rot2 ** 2)
-        true_rot2 = delta_rot2 - sample(0, self._alpha1 * delta_rot2 ** 2 + self._alpha1 * delta_trans ** 2)
+        b1 = self._alpha1 * delta_rot1 ** 2 + self._alpha2 * delta_trans ** 2
+        b2 = self._alpha3 * delta_trans ** 2 + self._alpha4 * delta_rot1 ** 2 + self._alpha4 * delta_rot2 ** 2
+        b3 = self._alpha1 * delta_rot2 ** 2 + self._alpha2 * delta_trans ** 2
+
+        true_rot1 = delta_rot1 - sample(0, math.sqrt(b1))
+        true_trans = delta_trans - sample(0, math.sqrt(b2))
+        true_rot2 = delta_rot2 - sample(0, math.sqrt(b3))
 
         x_t1 = np.zeros(x_t0.shape)
         x_t1[0] = x_t0[0] + true_trans * math.cos(x_t0[2] + true_rot1)
