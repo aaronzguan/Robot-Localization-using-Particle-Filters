@@ -102,6 +102,11 @@ if __name__ == '__main__':
     """
     Monte Carlo Localization Algorithm : Main Loop
     """
+    if not os.path.exists("raycast_map.npy"):
+        raycast_map = sensor_model.precompute_raycast()
+    else:
+        raycast_map = np.load("raycast_map.npy")
+
     if args.visualize:
         visualize_map(occupancy_map)
 
@@ -153,7 +158,7 @@ if __name__ == '__main__':
             """
             if (meas_type == "L"):
                 z_t = ranges
-                w_t = sensor_model.beam_range_finder_model(z_t, x_t1)
+                w_t = sensor_model.beam_range_finder_model(z_t, x_t1, raycast_map)
                 X_bar_new[m, :] = np.hstack((x_t1, w_t))
             else:
                 X_bar_new[m, :] = np.hstack((x_t1, X_bar[m, 3]))

@@ -9,6 +9,7 @@ import math
 import time
 from matplotlib import pyplot as plt
 from scipy.stats import norm
+from tqdm import tqdm
 
 from map_reader import MapReader
 
@@ -44,13 +45,17 @@ class SensorModel:
         self._resolution = 10  # each cell has a 10cm resolution in x,y axes
         self._interpolation_num = 200  # The number of points interpolated during ray casting
 
-    def beam_range_finder_model(self, z_t1_arr, x_t1):
+    def beam_range_finder_model(self, z_t1_arr, x_t1, raycast_map):
         """
         param[in] z_t1_arr : laser range readings [array of 180 values] at time t
         param[in] x_t1 : particle state belief [x, y, theta] at time t [world_frame]
+        param[in] raycast_map : look up map for the true laser range readings zstar_t
         param[out] prob_zt1 : likelihood of a range scan zt1 at time t
         """
-        z_t, zstar_t = self.ray_casting(z_t1_arr, x_t1)
+        # Down-sample the laser reading
+        z_t = [z_t1_arr[i] for i in range(0, 180, self._subsampling)]
+        # Get the true laser reading
+        zstar_t = self.ray_casting(x_t1, raycast_map)
 
         prob_zt1 = 1.0
         for i in range(len(z_t)):
@@ -64,31 +69,61 @@ class SensorModel:
 
         return prob_zt1
 
-    def ray_casting(self, z_t1_arr, x_t1):
-        z_t = np.empty(shape=[len(z_t1_arr) // self._subsampling])
-        zstar_t = np.ones_like(z_t)*self._max_range
+    def ray_casting(self, x_t1, raycast_map):
         theta_robot = x_t1[2]
-        laser_origin = [x_t1[0] + self._offset * math.cos(theta_robot), x_t1[1] + self._offset * math.sin(theta_robot)]
+        origin_laser_x = int((x_t1[0] + self._offset * math.cos(theta_robot))//self._resolution)
+        origin_laser_y = int((x_t1[1] + self._offset * math.sin(theta_robot))//self._resolution)
+        # Get the down-sampled angles in radian
+        theta_laser = [(theta_robot - np.pi/2 + theta * np.pi / 180) for theta in range(0, 180, self._subsampling)]
+        theta_laser = (np.degrees(theta_laser) % 360).astype(int)    # convert from radian to degree
+        zstar_t = raycast_map[origin_laser_y, origin_laser_x, theta_laser]
+        return zstar_t
+
+    def precompute_raycast(self):
+        height, width = self._occupancy_map.shape
+        raycast_map = np.zeros((height, width, 360))
+
+        for i in tqdm(range(height * width)):
+            x = i % width
+            y = i // width
+            # Make sure the initial pose is unoccupied
+            if self._occupancy_map[y][x] != 0:
+                continue
+
+            x_map = x * self._resolution
+            y_map = y * self._resolution
+
+            zstar_t = self.ray_casting_all((x_map, y_map))
+
+            for theta, z in zip(range(360), zstar_t):
+                raycast_map[y, x, theta] = z
+
+        np.save('raycast_map.npy', raycast_map)
+        print('Pre-compute of ray casting done!')
+        return raycast_map
+
+    def ray_casting_all(self, origin_laser):
+        zstar_t = np.ones(360) * self._max_range
         dist_step = np.linspace(0, self._max_range, self._interpolation_num)
 
         for i in range(len(zstar_t)):
-            # Down-sample the laser reading
-            z_t[i] = z_t1_arr[i * self._subsampling]
+            theta_laser = i * np.pi/180
+            zx_world = origin_laser[0] + dist_step * math.cos(theta_laser)
+            zy_world = origin_laser[1] + dist_step * math.sin(theta_laser)
 
-            theta_laser = -np.pi/2 + self._subsampling * i
-            zx_world = laser_origin[0] + dist_step * math.cos(theta_robot + theta_laser)
-            zy_world = laser_origin[1] + dist_step * math.sin(theta_robot + theta_laser)
-
-            zx = (zx_world / self._resolution).astype(int)   # TODO: Should do round down or round to nearest?
+            zx = (zx_world / self._resolution).astype(int)
             zy = (zy_world / self._resolution).astype(int)
 
             for j in range(len(zx)):
                 # Check if zx and zy are inside the map
                 if 0 <= zx[j] < self._occupancy_map.shape[1] and 0 <= zy[j] < self._occupancy_map.shape[0]:
+                    # Reached an obstacle
                     if self._occupancy_map[zy[j]][zx[j]] >= self._min_probability:
-                        zstar_t[i] = math.sqrt((zx_world[j] - laser_origin[0]) ** 2 + (zy_world[j] - laser_origin[1]) ** 2)
+                        zstar_t[i] = math.sqrt(
+                            (zx_world[j] - origin_laser[0]) ** 2 + (zy_world[j] - origin_laser[1]) ** 2)
+                        break
 
-        return z_t, zstar_t
+        return zstar_t
 
     def get_p_hit(self, z_t, zstar_t):
         p_hit = 0
@@ -117,6 +152,5 @@ class SensorModel:
         if 0 <= z_t < self._max_range:
             p_rand = 1 / self._max_range
         return p_rand
-
 
 
