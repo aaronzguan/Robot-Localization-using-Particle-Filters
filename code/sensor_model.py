@@ -26,10 +26,10 @@ class SensorModel:
         """
         # Four distributions are mixed by a weighted average, defined by
         # z_hit, z_short, z_max, z_rand, with z_hit + z_short + z_max + z_rand = 1
-        self._z_hit = 0.68
-        self._z_short = 0.1
-        self._z_max = 0.02
-        self._z_rand = 0.2
+        self._z_hit = 1  # 0.65
+        self._z_short = 0.1  # 0.08
+        self._z_max = 0.1  # 0.02
+        self._z_rand = 100  # 0.25
 
         # sigma_hit is an intrinsic noise parameter of the sensor model for measurement noise
         self._sigma_hit = 50
@@ -57,17 +57,18 @@ class SensorModel:
         # Get the true laser reading
         zstar_t = self.ray_casting(x_t1, raycast_map)
 
-        prob_zt1 = 1.0
+        prob_zt1 = 0
         for i in range(len(z_t)):
             p = self._z_hit * self.get_p_hit(z_t[i], zstar_t[i]) + \
                 self._z_short * self.get_p_short(z_t[i], zstar_t[i]) + \
                 self._z_max * self.get_p_max(z_t[i]) + \
                 self._z_rand * self.get_p_rand(z_t[i])
-            prob_zt1 *= p
-            # if prob_zt1 == 0:
-            #     prob_zt1 = 1e-20
 
-        return prob_zt1
+            # Avoid numerical issue by using LogSumExp
+            if p > 0:
+                prob_zt1 += np.log(p)
+
+        return np.exp(prob_zt1)
 
     def ray_casting(self, x_t1, raycast_map):
         theta_robot = x_t1[2]

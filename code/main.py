@@ -76,6 +76,35 @@ def init_particles_freespace(num_particles, occupancy_map):
     return X_bar_init
 
 
+def visualize_raycast(xt, occupancy_map, raycast_map):
+    """
+    Visualize raycast on the occupancy_map given a pose xt and the precomputed raycast_map
+    """
+    visualize_map(occupancy_map)
+
+    x, y, theta_robot, _ = xt
+    origin_laser_x = x + np.cos(theta_robot) * 25
+    origin_laser_y = y + np.sin(theta_robot) * 25
+    theta_laser = [(theta_robot - np.pi / 2 + n * np.pi/180) for n in range(180)]
+
+    x_laser_map = int(origin_laser_x//10)
+    y_laser_map = int(origin_laser_y//10)
+
+    z_cast_x, z_cast_y = [], []
+    for i, theta in enumerate(theta_laser):
+        theta_deg = int(np.degrees(theta) % 360)
+        z_cast = raycast_map[y_laser_map, x_laser_map, theta_deg]
+        x = origin_laser_x + z_cast * np.cos(theta)
+        y = origin_laser_y + z_cast * np.sin(theta)
+
+        z_cast_x.append(x // 10)
+        z_cast_y.append(y // 10)
+
+    plt.scatter(x_laser_map, y_laser_map, c='r', marker='o')
+    for i in range(len(theta_laser)):
+        plt.plot([x_laser_map, z_cast_x[i]], [y_laser_map, z_cast_y[i]], color='g', linewidth=0.8)
+    plt.show()
+
 if __name__ == '__main__':
     """
     Description of variables used
@@ -93,7 +122,7 @@ if __name__ == '__main__':
     parser.add_argument('--path_to_map', default='../data/map/wean.dat')
     parser.add_argument('--path_to_log', default='../data/log/robotdata1.log')
     parser.add_argument('--output', default='results')
-    parser.add_argument('--num_particles', default=500, type=int)
+    parser.add_argument('--num_particles', default=1000, type=int)
     parser.add_argument('--visualize', action='store_false')
     args = parser.parse_args()
 
@@ -122,6 +151,7 @@ if __name__ == '__main__':
 
     if args.visualize:
         visualize_map(occupancy_map)
+        # visualize_raycast(X_bar[1], occupancy_map, raycast_map)
 
     first_time_idx = True
     for time_idx, line in enumerate(logfile):
