@@ -25,25 +25,25 @@ class SensorModel:
         The original numbers are for reference but HAVE TO be tuned.
         """
         # Four distributions are mixed by a weighted average, defined by
-        # z_hit, z_short, z_max, z_rand, with z_hit + z_short + z_max + z_rand = 1
+        # z_hit, z_short, z_max, z_rand
         self._z_hit = 1  # 0.65
         self._z_short = 0.1  # 0.08
-        self._z_max = 0.1  # 0.02
-        self._z_rand = 100  # 0.25
+        self._z_max = 0.01  # 0.02
+        self._z_rand = 200  # 0.25
 
         # sigma_hit is an intrinsic noise parameter of the sensor model for measurement noise
-        self._sigma_hit = 50
+        self._sigma_hit = 150
         # lambda_short is an intrinsic parameter of the sensor model, for exponential noise
         self._lambda_short = 0.1
 
-        self._max_range = 1000
-        self._min_probability = 0.35
-        self._subsampling = 8   # ratio of down sampling
+        self._max_range = 8183
+        self._min_probability = 0.25    # 0.02
+        self._subsampling = 5   # ratio of down sampling
 
         self._offset = 25  # The laser on the robot is 25 cm offset forward from center of the robot
         self._occupancy_map = occupancy_map
         self._resolution = 10  # each cell has a 10cm resolution in x,y axes
-        self._interpolation_num = 200  # The number of points interpolated during ray casting
+        self._interpolation_num = 250  # The number of points interpolated during ray casting
 
     def beam_range_finder_model(self, z_t1_arr, x_t1, raycast_map):
         """
@@ -53,20 +53,17 @@ class SensorModel:
         param[out] prob_zt1 : likelihood of a range scan zt1 at time t
         """
         # Down-sample the laser reading
-        z_t = [z_t1_arr[i] for i in range(0, 180, self._subsampling)]
+        z_t = np.array([z_t1_arr[i] for i in range(0, 180, self._subsampling)])
         # Get the true laser reading
         zstar_t = self.ray_casting(x_t1, raycast_map)
 
-        prob_zt1 = 0
-        for i in range(len(z_t)):
-            p = self._z_hit * self.get_p_hit(z_t[i], zstar_t[i]) + \
-                self._z_short * self.get_p_short(z_t[i], zstar_t[i]) + \
-                self._z_max * self.get_p_max(z_t[i]) + \
-                self._z_rand * self.get_p_rand(z_t[i])
+        prob_zt1 = self._z_hit * self.get_p_hit(z_t, zstar_t) + \
+                   self._z_short * self.get_p_short(z_t, zstar_t) + \
+                   self._z_max * self.get_p_max(z_t) + \
+                   self._z_rand * self.get_p_rand(z_t)
 
-            # Avoid numerical issue by using LogSumExp
-            if p > 0:
-                prob_zt1 += np.log(p)
+        prob_zt1 = np.delete(prob_zt1, np.where(prob_zt1 == 0.0))
+        prob_zt1 = np.sum(np.log(prob_zt1))
 
         return np.exp(prob_zt1)
 
@@ -99,8 +96,6 @@ class SensorModel:
             for theta, z in zip(range(360), zstar_t):
                 raycast_map[y, x, theta] = z
 
-        np.save('raycast_map.npy', raycast_map)
-        print('Pre-compute of ray casting done!')
         return raycast_map
 
     def ray_casting_all(self, origin_laser):
@@ -119,39 +114,33 @@ class SensorModel:
                 # Check if zx and zy are inside the map
                 if 0 <= zx[j] < self._occupancy_map.shape[1] and 0 <= zy[j] < self._occupancy_map.shape[0]:
                     # Reached an obstacle
-                    if self._occupancy_map[zy[j]][zx[j]] >= self._min_probability:
+                    if self._occupancy_map[zy[j]][zx[j]] >= self._min_probability or self._occupancy_map[zy[j]][zx[j]] == -1:
                         zstar_t[i] = math.sqrt(
                             (zx_world[j] - origin_laser[0]) ** 2 + (zy_world[j] - origin_laser[1]) ** 2)
                         break
+                else:
+                    break
 
         return zstar_t
 
     def get_p_hit(self, z_t, zstar_t):
-        p_hit = 0
-        if 0 <= z_t <= self._max_range:
-            eta = norm.cdf(self._max_range, loc=zstar_t, scale=self._sigma_hit) - norm.cdf(0, loc=zstar_t, scale=self._sigma_hit)
-            p_hit = norm.pdf(z_t, loc=zstar_t, scale=self._sigma_hit) / eta
-
+        eta = norm.cdf(self._max_range, loc=zstar_t, scale=self._sigma_hit) - norm.cdf(0, loc=zstar_t, scale=self._sigma_hit)
+        p_hit = norm.pdf(z_t, loc=zstar_t, scale=self._sigma_hit) / eta
+        p_hit[z_t > self._max_range] = 0
+        p_hit[z_t < 0] = 0
         return p_hit
 
     def get_p_short(self, z_t, zstar_t):
-        p_short = 0
-        if 0 <= z_t <= zstar_t:
-            eta = 1 / (1 - math.exp(-self._lambda_short * zstar_t))
-            p_short = eta * self._lambda_short * math.exp(-self._lambda_short * z_t)
-
+        eta = np.zeros_like(z_t)
+        eta[zstar_t != 0] = 1 / (1 - np.exp(-self._lambda_short * zstar_t[zstar_t != 0]))
+        p_short = eta * self._lambda_short * np.exp(-self._lambda_short * z_t)
+        p_short[np.where((z_t < 0) & (z_t > zstar_t))] = 0
         return p_short
 
     def get_p_max(self, z_t):
-        if z_t == self._max_range:
-            return 1
-        else:
-            return 0
+        return z_t == self._max_range
 
     def get_p_rand(self, z_t):
-        p_rand = 0
-        if 0 <= z_t < self._max_range:
-            p_rand = 1 / self._max_range
+        p_rand = np.zeros_like(z_t)
+        p_rand[np.where((z_t >= 0) & (z_t < self._max_range))] = 1 / self._max_range
         return p_rand
-
-

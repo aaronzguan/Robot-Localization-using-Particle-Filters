@@ -16,6 +16,7 @@ from resampling import Resampling
 from matplotlib import pyplot as plt
 from matplotlib import figure as fig
 import time
+import random
 
 
 def visualize_map(occupancy_map):
@@ -76,12 +77,10 @@ def init_particles_freespace(num_particles, occupancy_map):
     return X_bar_init
 
 
-def visualize_raycast(xt, occupancy_map, raycast_map):
+def visualize_raycast(xt, raycast_map):
     """
     Visualize raycast on the occupancy_map given a pose xt and the precomputed raycast_map
     """
-    visualize_map(occupancy_map)
-
     x, y, theta_robot, _ = xt
     origin_laser_x = x + np.cos(theta_robot) * 25
     origin_laser_y = y + np.sin(theta_robot) * 25
@@ -124,6 +123,7 @@ if __name__ == '__main__':
     parser.add_argument('--output', default='results')
     parser.add_argument('--num_particles', default=1000, type=int)
     parser.add_argument('--visualize', action='store_false')
+    parser.add_argument('--path_to_raycast_map', default='raycast_map.npy')
     args = parser.parse_args()
 
     src_path_map = args.path_to_map
@@ -138,21 +138,26 @@ if __name__ == '__main__':
     sensor_model = SensorModel(occupancy_map)
     resampler = Resampling()
 
+    random.seed(2)
     num_particles = args.num_particles
     # X_bar = init_particles_random(num_particles, occupancy_map)
     X_bar = init_particles_freespace(num_particles, occupancy_map)
     """
     Monte Carlo Localization Algorithm : Main Loop
     """
-    if not os.path.exists("raycast_map.npy"):
+    if not os.path.exists(args.path_to_raycast_map):
+        print("Start pre-computing the ray cast map")
         raycast_map = sensor_model.precompute_raycast()
+        np.save(args.path_to_raycast_map, raycast_map)
+        print('Pre-compute of ray casting done!')
     else:
-        raycast_map = np.load("raycast_map.npy")
+        raycast_map = np.load(args.path_to_raycast_map)
 
     if args.visualize:
         visualize_map(occupancy_map)
-        # visualize_raycast(X_bar[1], occupancy_map, raycast_map)
+        # visualize_raycast(X_bar[1], raycast_map)
 
+    start = time.time()
     first_time_idx = True
     for time_idx, line in enumerate(logfile):
 
@@ -190,6 +195,7 @@ if __name__ == '__main__':
 
         # Note: this formulation is intuitive but not vectorized; looping in python is SLOW.
         # Vectorized version will receive a bonus. i.e., the functions take all particles as the input and process them in a vector.
+        s = time.time()
         for m in range(0, num_particles):
             """
             MOTION MODEL
@@ -216,3 +222,7 @@ if __name__ == '__main__':
 
         if args.visualize:
             visualize_timestep(X_bar, time_idx, args.output)
+
+        print("Processing each data line in {:.2f}s".format(time.time() - s))
+
+    print("Total time: {}s".format(time.time() - start))
