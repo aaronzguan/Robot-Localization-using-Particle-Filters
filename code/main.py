@@ -16,7 +16,6 @@ from resampling import Resampling
 from matplotlib import pyplot as plt
 from matplotlib import figure as fig
 import time
-import random
 
 
 def visualize_map(occupancy_map):
@@ -102,7 +101,9 @@ def visualize_raycast(xt, raycast_map):
     plt.scatter(x_laser_map, y_laser_map, c='r', marker='o')
     for i in range(len(theta_laser)):
         plt.plot([x_laser_map, z_cast_x[i]], [y_laser_map, z_cast_y[i]], color='g', linewidth=0.8)
+        # plt.pause(0.00001)
     plt.show()
+
 
 if __name__ == '__main__':
     """
@@ -121,7 +122,7 @@ if __name__ == '__main__':
     parser.add_argument('--path_to_map', default='../data/map/wean.dat')
     parser.add_argument('--path_to_log', default='../data/log/robotdata1.log')
     parser.add_argument('--output', default='results')
-    parser.add_argument('--num_particles', default=1000, type=int)
+    parser.add_argument('--num_particles', default=3000, type=int)
     parser.add_argument('--visualize', action='store_false')
     parser.add_argument('--path_to_raycast_map', default='raycast_map.npy')
     args = parser.parse_args()
@@ -138,7 +139,6 @@ if __name__ == '__main__':
     sensor_model = SensorModel(occupancy_map)
     resampler = Resampling()
 
-    random.seed(2)
     num_particles = args.num_particles
     # X_bar = init_particles_random(num_particles, occupancy_map)
     X_bar = init_particles_freespace(num_particles, occupancy_map)

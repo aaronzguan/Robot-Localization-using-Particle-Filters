@@ -37,10 +37,10 @@ class MotionModel:
         TODO : Tune Motion Model parameters here
         The original numbers are for reference but HAVE TO be tuned.
         """
-        self._alpha1 = 0.0001
-        self._alpha2 = 0.0001
-        self._alpha3 = 0.01
-        self._alpha4 = 0.01
+        self._alpha1 = 0.00001
+        self._alpha2 = 0.00001
+        self._alpha3 = 0.0001
+        self._alpha4 = 0.0001
 
     def update(self, u_t0, u_t1, x_t0):
         """
@@ -97,6 +97,7 @@ if __name__ == "__main__":
 
         if first_time_idx:
             u_t0 = odometry_robot
+            # X_bar = odometry_robot
             first_time_idx = False
             continue
 

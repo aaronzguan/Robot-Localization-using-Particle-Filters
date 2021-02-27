@@ -26,19 +26,19 @@ class SensorModel:
         """
         # Four distributions are mixed by a weighted average, defined by
         # z_hit, z_short, z_max, z_rand
-        self._z_hit = 1  # 0.65
-        self._z_short = 0.1  # 0.08
-        self._z_max = 0.01  # 0.02
-        self._z_rand = 200  # 0.25
+        self._z_hit = 1  # 0.1 ~ 10
+        self._z_short = 0.12  # 0.01 ~ 1
+        self._z_max = 0.05  # 0.01 ~ 1
+        self._z_rand = 800  # 10 ~ 1000
 
         # sigma_hit is an intrinsic noise parameter of the sensor model for measurement noise
-        self._sigma_hit = 150
+        self._sigma_hit = 100
         # lambda_short is an intrinsic parameter of the sensor model, for exponential noise
         self._lambda_short = 0.1
 
         self._max_range = 8183
-        self._min_probability = 0.25    # 0.02
-        self._subsampling = 5   # ratio of down sampling
+        self._min_probability = 0.35
+        self._subsampling = 2   # ratio of down sampling
 
         self._offset = 25  # The laser on the robot is 25 cm offset forward from center of the robot
         self._occupancy_map = occupancy_map
